@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nini — Your wardrobe, organised</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="logo-mark">
+    <div class="logo-tagline">
+      <div class="lt-left">Fashion brand</div>
+      <div class="lt-logo-3d"><div class="lt-mini-logo"></div></div>
+      <div class="lt-copy">Carefully curated for people who want to look good, feel good and do good.</div>
+      <div class="lt-est">Est. 2026</div>
+    </div>
+  </div>
+
+  <nav>
+  <div class="nav-links">
+    <a href="#how">How it works</a>
+    <a href="#features">Wardrobe</a>
+    <a href="#collection">Collection</a>
+    <a href="#">Journal</a>
+  </div>
+  <div class="nav-actions">
+    <a href="#" class="nav-login" id="loginBtn">Log in</a>
+    <a href="#" class="nav-cta" id="signupBtn">Sign up</a>
+    <div class="nav-account" id="accountStatus" style="display:none;">
+      <span id="accountEmail"></span>
+      <a href="#" id="logoutBtn">Log out</a>
+    </div>
+  </div>
+</nav>
+
+<div class="partition"></div>
+
+<section class="hero">
+  <div>
+    <h1>The art of getting dressed,<br><em>reimagined</em>.</h1>
+    <p>Nini turns your wardrobe into an organised, searchable collection — so you can build outfits from what you have, spot the gaps, and stop buying things you'll never wear.</p>
+    <div class="hero-actions">
+      <a href="#" class="btn-primary">Start your wardrobe</a>
+      <a href="#how" class="btn-ghost">See how it works →</a>
+    </div>
+  </div>
+
+</section>
+
+<section id="how">
+  <div class="section-inner">
+    <div class="section-head">
+      <h2>Adding a piece takes ten seconds</h2>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-index">01</div>
+        <h4>Photograph it</h4>
+        <p>Snap the item, roughly where it sits in frame — no need to crop.</p>
+      </div>
+      <div class="step">
+        <div class="step-index">02</div>
+        <h4>Nini isolates it</h4>
+        <p>The background lifts away automatically, leaving a clean cut-out.</p>
+      </div>
+      <div class="step">
+        <div class="step-index">03</div>
+        <h4>Tag itself</h4>
+        <p>Category, colour and season are detected — you just confirm.</p>
+      </div>
+      <div class="step">
+        <div class="step-index">04</div>
+        <h4>It's in your wardrobe</h4>
+        <p>Ready to build outfits with, or store in a Wishlist for later.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="collection" class="collection-strip">
+  <div class="section-inner">
+    <div class="section-head">
+      <h2>This season's capsule</h2>
+    </div>
+    <div class="collection-row">
+      <div class="piece">
+        <div class="piece-swatch p1"></div>
+        <div class="piece-name">Umber wool coat</div>
+        <div class="piece-price">£185</div>
+      </div>
+      <div class="piece">
+        <div class="piece-swatch p2"></div>
+        <div class="piece-name">Brass button blazer</div>
+        <div class="piece-price">£145</div>
+      </div>
+      <div class="piece">
+        <div class="piece-swatch p3"></div>
+        <div class="piece-name">Sage knit vest</div>
+        <div class="piece-price">£68</div>
+      </div>
+      <div class="piece">
+        <div class="piece-swatch p4"></div>
+        <div class="piece-name">Bone silk shirt</div>
+        <div class="piece-price">£92</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta">
+  <h2>Your wardrobe, finally organised.</h2>
+  <p>Free to start. Takes about two minutes to add your first ten pieces.</p>
+  <a href="#" class="btn-primary">Start your wardrobe</a>
+</section>
+
+<footer>nini — build a wardrobe, not a pile</footer>
+
+<div class="modal-overlay" id="authOverlay">
+  <div class="modal-box">
+    <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
+    <h3 id="modalTitle">Sign up</h3>
+    <p class="modal-subtitle" id="modalSubtitle">Create your wardrobe in under a minute.</p>
+    <form id="authForm">
+      <label>
+        Email
+        <input type="email" placeholder="you@example.com" required>
+      </label>
+      <label>
+        Password
+        <input type="password" placeholder="••••••••" required>
+      </label>
+      <p class="form-error" id="authError" style="display:none;"></p>
+      <button type="submit" class="btn-primary modal-submit">Create account</button>
+    </form>
+    <p class="modal-switch">
+      Already have an account? <a href="#" id="switchToLogin">Log in</a>
+    </p>
+  </div>
+</div>
+
+<script type="module" src="script.js"></script>
+</body>
+</html>
