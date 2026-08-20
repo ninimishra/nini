@@ -684,3 +684,144 @@
     color: #B04A3A;
     margin-top: -6px;
   }
+
+  /* ---- wardrobe upload feature ---- */
+  .wardrobe-section {
+    background: var(--cream);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .item-form {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 32px;
+    margin-bottom: 56px;
+    align-items: start;
+  }
+
+  @media (max-width: 700px) {
+    .item-form { grid-template-columns: 1fr; }
+  }
+
+  .item-form-photo input[type="file"] {
+    display: none;
+  }
+
+  .photo-drop {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    height: 220px;
+    border: 1px dashed var(--line);
+    border-radius: 4px;
+    cursor: pointer;
+    overflow: hidden;
+    font-family: 'Fraunces', serif;
+    font-size: 13px;
+    color: var(--ink-soft);
+    background: var(--plaster);
+    transition: border-color 0.2s;
+  }
+  .photo-drop:hover { border-color: var(--brass); }
+
+  .photo-drop img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .item-form-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .item-form-fields label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-family: 'Fraunces', serif;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+
+  .item-form-fields input,
+  .item-form-fields select {
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    padding: 11px 12px;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    background: var(--plaster);
+    color: var(--ink);
+  }
+  .item-form-fields input:focus,
+  .item-form-fields select:focus {
+    outline: none;
+    border-color: var(--brass);
+  }
+
+  #itemSubmit {
+    grid-column: 1 / -1;
+    border: none;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+
+  .wardrobe-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 24px;
+  }
+
+  .wardrobe-item {
+    position: relative;
+  }
+
+  .wardrobe-item img {
+    width: 100%;
+    aspect-ratio: 3/4;
+    object-fit: cover;
+    border-radius: 4px;
+    background: var(--plaster);
+  }
+
+  .wardrobe-item-name {
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    margin-top: 10px;
+  }
+
+  .wardrobe-item-meta {
+    font-family: 'Fraunces', serif;
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-top: 2px;
+  }
+
+  .wardrobe-item-delete {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(43,36,32,0.6);
+    color: var(--cream);
+    font-family: 'Fraunces', serif;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .wardrobe-item-delete:hover { background: var(--ink); }
+
+  .wardrobe-empty {
+    font-family: 'Fraunces', serif;
+    font-size: 14px;
+    color: var(--ink-soft);
+  }
