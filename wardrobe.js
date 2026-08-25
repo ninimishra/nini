@@ -17,6 +17,7 @@ import {
   query,
   where,
   onSnapshot,
+  getDocs,
   deleteDoc,
   doc,
   serverTimestamp
@@ -128,9 +129,53 @@ function renderBoard(id, board, index) {
   name.className = 'board-card-name';
   name.textContent = board.name;
 
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'board-card-delete';
+  deleteBtn.title = 'Delete this wardrobe';
+  deleteBtn.innerHTML = '&times;';
+  // The whole card is a link (clicking it navigates into the board).
+  // These two lines stop that navigation from happening when someone
+  // clicks the × specifically, and stop the click "bubbling up" to
+  // the card underneath it.
+  deleteBtn.addEventListener('click', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    deleteBoard(id, board.name);
+  });
+
+  card.appendChild(deleteBtn);
   card.appendChild(swatch);
   card.appendChild(name);
   return card;
+}
+
+// Deleting a board also deletes every item that belongs to it,
+// so nothing gets left behind with no wardrobe to belong to.
+function deleteBoard(boardId, boardName) {
+  const confirmed = confirm('Delete "' + boardName + '" and everything in it? This can\'t be undone.');
+  if (!confirmed) return;
+
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const itemsQuery = query(
+    collection(db, 'items'),
+    where('uid', '==', user.uid),
+    where('boardId', '==', boardId)
+  );
+
+  getDocs(itemsQuery).then(function (snapshot) {
+    const deletions = [];
+    snapshot.forEach(function (docSnap) {
+      deletions.push(deleteDoc(doc(db, 'items', docSnap.id)));
+    });
+    // Wait for all the item deletions to finish, then delete the board itself
+    return Promise.all(deletions);
+  }).then(function () {
+    return deleteDoc(doc(db, 'boards', boardId));
+  }).catch(function (error) {
+    alert('Something went wrong deleting this wardrobe: ' + error.message);
+  });
 }
 
 function listenForBoards(uid) {
