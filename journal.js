@@ -86,11 +86,12 @@ onAuthStateChanged(auth, function (user) {
 });
 
 // ---- Modal open/close ----
-// The "This week's finds" box is now a plain <a href="weekly-finds.html">
-// in the HTML itself, so it navigates there with zero JS required (it'll
-// still work even if this script, or Firebase, fails to load). The
-// "+ Add a find" button sits inside that link, so it has to stop the
-// click from also triggering the link's navigation.
+// The "This week's finds" box is a plain <a href="#thisWeeksFinds">
+// in the HTML itself, so it scrolls down to the product grid further
+// down this same page with zero JS required (it'll still work even if
+// this script, or Firebase, fails to load). The "+ Add a find" button
+// sits inside that link, so it has to stop the click from also
+// triggering the link's navigation/scroll.
 addFindBtn.addEventListener('click', function (event) {
   event.preventDefault();
   event.stopPropagation();
