@@ -30,6 +30,17 @@
     border-bottom: 1px solid rgba(26,23,18,0.12);
   }
 
+  .back-btn {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.03em;
+    color: var(--cream);
+    opacity: 0.65;
+    text-decoration: none;
+    transition: opacity 0.2s ease;
+  }
+  .back-btn:hover { opacity: 1; }
+
   .logo-mark {
     width: 38px;
     height: 29px;
@@ -81,7 +92,8 @@
 <body>
 
 <header>
-  <a href="cultr.html"><div class="logo-mark"></div></a>
+  <a href="#" class="back-btn" onclick="history.length>1?history.back():location.href='index.html';return false;">&larr; Back</a>
+  <a href="index.html"><div class="logo-mark"></div></a>
   <div class="nav-links">
     <a href="wardrobe.html">Wardrobe</a>
     <a href="clothes.html">Clothes</a>

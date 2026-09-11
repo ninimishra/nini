@@ -16,6 +16,7 @@ import {
   query,
   where,
   onSnapshot,
+  getDocs,
   deleteDoc,
   doc,
   serverTimestamp
@@ -292,10 +293,42 @@ function renderProductGrid(byId) {
   }
 }
 
-renderProductGrid(new Map()); // 50 empty boxes immediately, filled in live below
+// ---- Opening the "This week's finds" box: the 50 slots live inside it,
+// hidden until pressed. Nothing is fetched from Firestore until the box
+// is actually opened — a one-time getDocs() read rather than a live
+// onSnapshot listener, since this is a public read-only gallery that
+// doesn't need real-time updates. Once loaded, reopening the box just
+// reveals the cached grid instead of re-fetching.
+const findsBox = document.getElementById('findsBox');
+let findsLoaded = false;
+let findsLoading = false;
 
-onSnapshot(collection(db, 'products'), function (snapshot) {
-  const byId = new Map();
-  snapshot.forEach(function (docSnap) { byId.set(docSnap.id, docSnap.data()); });
-  renderProductGrid(byId);
+async function loadFindsGrid() {
+  if (findsLoaded || findsLoading) return;
+  findsLoading = true;
+  try {
+    const snapshot = await getDocs(collection(db, 'products'));
+    const byId = new Map();
+    snapshot.forEach(function (docSnap) { byId.set(docSnap.id, docSnap.data()); });
+    renderProductGrid(byId);
+    findsLoaded = true;
+  } catch (error) {
+    thisWeeksFindsGrid.innerHTML = '';
+    const err = document.createElement('p');
+    err.className = 'empty-state';
+    err.textContent = "Couldn't load this week's finds — try again in a moment.";
+    thisWeeksFindsGrid.appendChild(err);
+  } finally {
+    findsLoading = false;
+  }
+}
+
+findsBox.addEventListener('click', function (event) {
+  event.preventDefault();
+  const isOpen = thisWeeksFindsGrid.classList.toggle('is-open');
+  findsBox.classList.toggle('is-open', isOpen);
+  if (isOpen) {
+    loadFindsGrid();
+    thisWeeksFindsGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 });
