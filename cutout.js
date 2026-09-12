@@ -23,9 +23,15 @@ function loadRemoveBackground() {
   // Imported lazily (only once someone actually uploads a photo) since it
   // pulls in onnxruntime-web, which is a non-trivial chunk of JS.
   if (!removeBackgroundPromise) {
-    removeBackgroundPromise = import("https://esm.sh/@imgly/background-removal@1.7.0").then(
-      (mod) => mod.default
-    );
+    removeBackgroundPromise = import("https://esm.sh/@imgly/background-removal@1.7.0")
+      .then((mod) => mod.default)
+      .catch((err) => {
+        // Don't cache a failed load — let a later retry try again
+        // (e.g. if the first attempt failed only because of a flaky
+        // network request for the model).
+        removeBackgroundPromise = null;
+        throw err;
+      });
   }
   return removeBackgroundPromise;
 }
@@ -201,8 +207,9 @@ export function mountCutoutPanel(mount, opts = {}) {
   function renderAutoFailedState() {
     currentResult = photoDataUrl;
     showPreview(photoDataUrl);
-    status.textContent = "Automatic cutout wasn't available on this device.";
+    status.textContent = "Automatic cutout couldn't run just now — see the browser console for details.";
     actions.innerHTML = "";
+    actions.appendChild(button("Try again", runAuto, "quiet"));
     actions.appendChild(button("Cut out manually", enterFreehand));
     actions.appendChild(button("Use full photo", useOriginal, "quiet"));
   }
@@ -272,6 +279,11 @@ export function mountCutoutPanel(mount, opts = {}) {
       if (destroyed) return;
       renderAutoReadyState(dataUrl);
     } catch (err) {
+      // Logged (not just swallowed) so the actual cause — a blocked
+      // network request for the model, an unsupported browser, a bad
+      // esm.sh bundle, etc. — shows up in devtools instead of just a
+      // generic "didn't work" message.
+      console.error("Cutout: automatic background removal failed —", err);
       if (destroyed) return;
       renderAutoFailedState();
     }

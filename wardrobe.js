@@ -1,17 +1,18 @@
-// ---- Cultr: Wardrobe page ----
-// Wires together the three ported React Bits components (LineSidebar,
-// TiltedCard, Stepper) into the Wardrobe overview. No backend yet — the
-// list of wardrobes lives in localStorage on this device, the same way
-// the rest of the site currently has no-backend stubs (see README). The
-// shape (id/name) matches what a future "wardrobes" Firestore collection
-// could use, so wiring in Firebase later is a straight swap of the
-// load/save functions below for getDocs/addDoc/onSnapshot calls like
-// journal.js and clothes.js already do.
+// ---- Cultr: Wardrobe overview page ----
+// Wires together the ported React Bits components (LineSidebar,
+// TiltedCard, Stepper) plus the shared Add Item modal into the Wardrobe
+// overview. No backend yet — the list of wardrobes lives in localStorage
+// on this device, the same way the rest of the site currently has
+// no-backend stubs (see README). The shape (id/name/coverImage) matches
+// what a future "wardrobes" Firestore collection could use, so wiring in
+// Firebase later is a straight swap of the load/save functions below for
+// getDocs/addDoc/onSnapshot calls like journal.js and clothes.js already do.
 
 import { mountLineSidebar } from "./line-sidebar.js";
 import { mountTiltedCard } from "./tilted-card.js";
 import { mountStepper } from "./stepper.js";
 import { mountSpecularButton } from "./specular-button.js";
+import { mountAddItemModal } from "./add-item.js";
 
 const STORAGE_KEY = "cultr:wardrobes";
 const ITEMS_KEY = "cultr:wardrobe-items";
@@ -42,10 +43,9 @@ function hashHue(str) {
   return hash % 360;
 }
 
-// Self-contained SVG "monogram" placeholder so each wardrobe card has a
-// distinct image with zero network requests and no stock-photo licensing
-// to think about — a soft brass/charcoal gradient plus the wardrobe's
-// initial, in the same serif used across the site.
+// Self-contained SVG "monogram" fallback cover, used until someone
+// uploads a real photo for a wardrobe — zero network requests and no
+// stock-photo licensing to think about.
 function monogramImage(name) {
   const hue = hashHue(name || "W");
   const initial = (name || "W").trim().charAt(0).toUpperCase();
@@ -65,8 +65,41 @@ function monogramImage(name) {
   return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
 }
 
+function coverImageFor(entry) {
+  return entry.coverImage || monogramImage(entry.name);
+}
+
 function wardrobeHref(entry) {
   return "wardrobe-detail.html?id=" + encodeURIComponent(entry.id) + "&name=" + encodeURIComponent(entry.name);
+}
+
+// Same shrink-before-storing trick used elsewhere on the site, so a
+// full-resolution cover photo doesn't bloat localStorage.
+function resizeImage(file, maxSize) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > height && width > maxSize) {
+          height = Math.round((height * maxSize) / width);
+          width = maxSize;
+        } else if (height > maxSize) {
+          width = Math.round((width * maxSize) / height);
+          height = maxSize;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 // ---- storage ----
@@ -87,9 +120,9 @@ function saveWardrobes(list) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
 }
 
-// Items belong to a wardrobe by id (see wardrobe-detail.js). When a
-// wardrobe is deleted, its items would otherwise sit around orphaned in
-// localStorage forever, so clear them out too.
+// Items belong to a wardrobe by id (see wardrobe-detail.js / add-item.js).
+// When a wardrobe is deleted, its items would otherwise sit around
+// orphaned in localStorage forever, so clear them out too.
 function deleteItemsForWardrobe(wardrobeId) {
   try {
     const raw = localStorage.getItem(ITEMS_KEY);
@@ -124,6 +157,8 @@ function init() {
   const stepperOverlay = document.getElementById("stepperOverlay");
   const stepperClose = document.getElementById("stepperClose");
   const stepperMount = document.getElementById("stepperMount");
+  const addItemBtn = document.getElementById("addItemGlobalBtn");
+  const addItemMount = document.getElementById("addItemMount");
 
   // ---- LineSidebar: browse by category ----
   mountLineSidebar(sidebarMount, {
@@ -161,7 +196,7 @@ function init() {
       },
       {
         title: "Group it into wardrobes",
-        bodyHTML: "<p>Each wardrobe is its own little capsule — Everyday, Workwear, Date Night, whatever fits your life. Give it a name you'll recognise later.</p>"
+        bodyHTML: "<p>Each wardrobe is its own little capsule — Everyday, Workwear, Date Night, whatever fits your life. Give it a name (and a cover photo) you'll recognise later.</p>"
       },
       {
         title: "Browse by category",
@@ -202,14 +237,49 @@ function init() {
     stage.className = "wardrobe-card-stage";
     card.appendChild(stage);
 
-    const tiltedCard = mountTiltedCard(stage, {
-      imageSrc: monogramImage(entry.name),
+    let tiltedCard = mountTiltedCard(stage, {
+      imageSrc: coverImageFor(entry),
       altText: entry.name,
       captionText: entry.name,
       rotateAmplitude: 10,
       scaleOnHover: 1.06,
       showTooltip: true
     });
+
+    // ---- editable cover photo ----
+    const coverInput = document.createElement("input");
+    coverInput.type = "file";
+    coverInput.accept = "image/*";
+    coverInput.className = "wardrobe-cover-input";
+    coverInput.addEventListener("change", () => {
+      const file = coverInput.files[0];
+      if (!file) return;
+      resizeImage(file, 700).then((dataUrl) => {
+        entry.coverImage = dataUrl;
+        saveWardrobes(wardrobes);
+        tiltedCard.destroy();
+        tiltedCard = mountTiltedCard(stage, {
+          imageSrc: coverImageFor(entry),
+          altText: entry.name,
+          captionText: entry.name,
+          rotateAmplitude: 10,
+          scaleOnHover: 1.06,
+          showTooltip: true
+        });
+      });
+    });
+
+    const coverBtn = document.createElement("button");
+    coverBtn.type = "button";
+    coverBtn.className = "wardrobe-card-cover-btn";
+    coverBtn.textContent = "Change cover";
+    coverBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      coverInput.click();
+    });
+    stage.appendChild(coverInput);
+    stage.appendChild(coverBtn);
 
     const deleteBtn = document.createElement("button");
     deleteBtn.type = "button";
@@ -261,6 +331,20 @@ function init() {
     wardrobes.push(entry);
     saveWardrobes(wardrobes);
     renderCard(entry);
+  });
+
+  // ---- global "Add item" (no wardrobe preselected — pick one or several) ----
+  const addItemModal = mountAddItemModal(addItemMount, {
+    getWardrobes: () => wardrobes,
+    defaultWardrobeIds: [],
+    onSaved: () => {
+      // Items aren't shown on this overview page, nothing to refresh here.
+    }
+  });
+  addItemBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addItemModal.open();
   });
 }
 

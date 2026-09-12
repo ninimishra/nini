@@ -1,16 +1,17 @@
 // ---- Cultr: Wardrobe detail page ----
 // Shows one wardrobe's items grouped into rows by category, and lets you
-// add a new item (photo + category + which wardrobe it belongs to).
+// add a new item (photo + category + which wardrobe(s) it belongs to,
+// via the shared Add Item modal in add-item.js).
 //
 // Storage (localStorage, same no-backend-yet approach as wardrobe.js):
-//   cultr:wardrobes       -> [{ id, name }, ...]            (written by wardrobe.js)
+//   cultr:wardrobes       -> [{ id, name, coverImage }, ...]  (written by wardrobe.js)
 //   cultr:wardrobe-items  -> [{ id, wardrobeId, category, image, createdAt }, ...]
 //
 // Swapping this for Firestore later is a matter of replacing the load/
 // save helpers below with getDocs/addDoc/onSnapshot, the same shape
 // journal.js and clothes.js already use for their collections.
 
-import { mountCutoutPanel } from "./cutout.js";
+import { mountAddItemModal } from "./add-item.js";
 
 const WARDROBES_KEY = "cultr:wardrobes";
 const ITEMS_KEY = "cultr:wardrobe-items";
@@ -42,35 +43,6 @@ function saveItems(items) {
   localStorage.setItem(ITEMS_KEY, JSON.stringify(items));
 }
 
-// ---- image resize (same trick journal.js uses: shrink + re-encode via
-// canvas before it ever touches storage, so items don't bloat localStorage) ----
-function resizeImage(file, maxSize) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        let width = img.width;
-        let height = img.height;
-        if (width > height && width > maxSize) {
-          height = Math.round((height * maxSize) / width);
-          width = maxSize;
-        } else if (height > maxSize) {
-          width = Math.round((width * maxSize) / height);
-          height = maxSize;
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", 0.75));
-      };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
 function getQueryParam(name) {
   return new URLSearchParams(window.location.search).get(name);
 }
@@ -86,20 +58,9 @@ function init() {
 
   const itemRowsMount = document.getElementById("itemRows");
   const addItemBtn = document.getElementById("addItemBtn");
-  const overlay = document.getElementById("addItemOverlay");
-  const closeBtn = document.getElementById("addItemClose");
-  const form = document.getElementById("addItemForm");
-  const photoInput = document.getElementById("itemPhotoInput");
-  const photoDropText = document.getElementById("photoDropText");
-  const cutoutMount = document.getElementById("cutoutMount");
-  const categorySelect = document.getElementById("itemCategorySelect");
-  const wardrobeSelect = document.getElementById("itemWardrobeSelect");
-  const errorEl = document.getElementById("addItemError");
+  const addItemMount = document.getElementById("addItemMount");
 
   let items = loadItems();
-  let selectedPhotoData = null;
-  let cutoutPanel = null;
-
   const rowEls = {};
 
   // ---- build the four category rows ----
@@ -120,6 +81,12 @@ function init() {
     rowEls[category] = row;
   });
 
+  function deleteItem(itemId) {
+    items = items.filter((it) => it.id !== itemId);
+    saveItems(items);
+    renderAllRows();
+  }
+
   function renderRow(category) {
     const row = rowEls[category];
     row.innerHTML = "";
@@ -136,11 +103,23 @@ function init() {
     inCategory.forEach((it) => {
       const box = document.createElement("div");
       box.className = "item-box";
+
       const img = document.createElement("img");
       img.src = it.image;
       img.alt = category;
       img.loading = "lazy";
       box.appendChild(img);
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "item-box-delete";
+      deleteBtn.innerHTML = "&times;";
+      deleteBtn.setAttribute("aria-label", "Remove item");
+      deleteBtn.addEventListener("click", () => {
+        if (window.confirm("Remove this item?")) deleteItem(it.id);
+      });
+      box.appendChild(deleteBtn);
+
       row.appendChild(box);
     });
   }
@@ -150,94 +129,16 @@ function init() {
   }
   renderAllRows();
 
-  // ---- wardrobe <select> in the modal ----
-  function populateWardrobeSelect() {
-    wardrobeSelect.innerHTML = "";
-    wardrobes.forEach((w) => {
-      const option = document.createElement("option");
-      option.value = w.id;
-      option.textContent = w.name;
-      if (w.id === wardrobeId) option.selected = true;
-      wardrobeSelect.appendChild(option);
-    });
-  }
-  populateWardrobeSelect();
-
-  // ---- modal open/close ----
-  function resetForm() {
-    form.reset();
-    selectedPhotoData = null;
-    if (cutoutPanel) {
-      cutoutPanel.destroy();
-      cutoutPanel = null;
+  // ---- Add Item modal (shared with the Wardrobe overview page) ----
+  const addItemModal = mountAddItemModal(addItemMount, {
+    getWardrobes: () => loadWardrobes(),
+    defaultWardrobeIds: wardrobeId ? [wardrobeId] : [],
+    onSaved: () => {
+      items = loadItems();
+      renderAllRows();
     }
-    photoDropText.style.display = "block";
-    errorEl.style.display = "none";
-    populateWardrobeSelect();
-  }
-
-  function openModal() {
-    resetForm();
-    overlay.classList.add("is-open");
-  }
-  function closeModal() {
-    overlay.classList.remove("is-open");
-  }
-
-  addItemBtn.addEventListener("click", openModal);
-  closeBtn.addEventListener("click", closeModal);
-  overlay.addEventListener("click", (e) => {
-    if (e.target === overlay) closeModal();
   });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeModal();
-  });
-
-  photoInput.addEventListener("change", () => {
-    const file = photoInput.files[0];
-    if (!file) return;
-    resizeImage(file, 700).then((dataUrl) => {
-      selectedPhotoData = dataUrl;
-      photoDropText.style.display = "none";
-      if (cutoutPanel) cutoutPanel.destroy();
-      cutoutPanel = mountCutoutPanel(cutoutMount, { photoDataUrl: dataUrl });
-    });
-  });
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    errorEl.style.display = "none";
-
-    if (!selectedPhotoData) {
-      errorEl.textContent = "Add a photo first.";
-      errorEl.style.display = "block";
-      return;
-    }
-    const targetWardrobeId = wardrobeSelect.value;
-    if (!targetWardrobeId) {
-      errorEl.textContent = "Choose a wardrobe to add this to.";
-      errorEl.style.display = "block";
-      return;
-    }
-    const category = categorySelect.value;
-    const finalImage = cutoutPanel ? cutoutPanel.getResult() : selectedPhotoData;
-
-    const newItem = {
-      id: "item-" + Date.now(),
-      wardrobeId: targetWardrobeId,
-      category,
-      image: finalImage,
-      createdAt: Date.now()
-    };
-    items.push(newItem);
-    saveItems(items);
-
-    if (targetWardrobeId === wardrobeId) {
-      renderRow(category);
-    }
-
-    closeModal();
-  });
+  addItemBtn.addEventListener("click", () => addItemModal.open());
 }
 
 if (document.readyState === "loading") {

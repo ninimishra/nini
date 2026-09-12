@@ -204,7 +204,58 @@
     aspect-ratio: 4/5;
   }
 
-  .wardrobe-card-delete {
+  .wardrobe-cover-input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    width: 1px;
+    height: 1px;
+  }
+
+  .wardrobe-card-cover-btn {
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+    z-index: 4;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--cream);
+    background: rgba(237,232,220,0.92);
+    border: none;
+    border-radius: 999px;
+    padding: 6px 12px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .wardrobe-card-stage:hover .wardrobe-card-cover-btn,
+  .wardrobe-card-cover-btn:focus {
+    opacity: 1;
+  }
+  .wardrobe-card-cover-btn:hover { background: var(--brass); color: var(--black); }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .add-item-trigger-btn {
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--cream);
+    background: var(--charcoal);
+    border: 1px solid rgba(26,23,18,0.12);
+    border-radius: 999px;
+    padding: 11px 22px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .add-item-trigger-btn:hover { background: rgba(176,138,78,0.14); }
+
     position: absolute;
     top: 10px;
     right: 10px;
@@ -551,6 +602,231 @@
     text-shadow: 0 1px 4px rgba(0,0,0,0.6);
     margin: 0;
   }
+  /* ---- multi-wardrobe select (used by the shared Add Item modal) ---- */
+  .multiselect {
+    position: relative;
+  }
+  .multiselect-trigger {
+    width: 100%;
+    text-align: left;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(26,23,18,0.2);
+    background: var(--charcoal);
+    color: var(--cream);
+    cursor: pointer;
+  }
+  .multiselect-panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    max-height: 180px;
+    overflow-y: auto;
+    background: var(--charcoal);
+    border: 1px solid rgba(26,23,18,0.2);
+    border-radius: 8px;
+    padding: 6px;
+    z-index: 5;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+  }
+  .multiselect.is-open .multiselect-panel { display: block; }
+  .multiselect-option {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 13.5px;
+    color: var(--cream);
+    padding: 7px 6px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .multiselect-option:hover { background: rgba(176,138,78,0.14); }
+
+  /* ---- Add Item modal ---- */
+  .add-item-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(26,23,18,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 999;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease;
+  }
+  .add-item-overlay.is-open { opacity: 1; visibility: visible; }
+
+  .add-item-modal {
+    position: relative;
+    background: var(--black);
+    color: var(--cream);
+    width: 100%;
+    max-width: 400px;
+    max-height: 88vh;
+    overflow-y: auto;
+    padding: 32px;
+    border-radius: 12px;
+    border: 1px solid rgba(26,23,18,0.12);
+    font-family: 'Inter', sans-serif;
+  }
+  .add-item-modal h3 {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 600;
+    font-size: 22px;
+    margin: 0 0 20px;
+  }
+  .add-item-close {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    background: none;
+    border: none;
+    color: var(--cream);
+    font-size: 22px;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  .add-item-field { margin-bottom: 18px; }
+  .add-item-field label {
+    display: block;
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.6;
+    margin-bottom: 8px;
+  }
+  .add-item-field select {
+    width: 100%;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(26,23,18,0.2);
+    background: var(--charcoal);
+    color: var(--cream);
+  }
+
+  .photo-drop {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4/3;
+    border-radius: 8px;
+    border: 1.5px dashed rgba(26,23,18,0.25);
+    background: var(--charcoal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    cursor: pointer;
+    text-align: center;
+  }
+  .photo-drop input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .photo-drop-text {
+    font-size: 13px;
+    color: rgba(26,23,18,0.5);
+    padding: 0 20px;
+  }
+  /* ---- cutout panel: shows the auto (in-browser AI) result or the
+       freehand lasso tool, once a photo's been chosen. ---- */
+  .cutout-panel {
+    margin-top: 14px;
+  }
+  .cutout-stage {
+    width: 100%;
+    aspect-ratio: 4/3;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: #fff;
+    background-image:
+      linear-gradient(45deg, rgba(0,0,0,0.06) 25%, transparent 25%),
+      linear-gradient(-45deg, rgba(0,0,0,0.06) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, rgba(0,0,0,0.06) 75%),
+      linear-gradient(-45deg, transparent 75%, rgba(0,0,0,0.06) 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cutout-preview-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+  .cutout-canvas-wrap {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .cutout-canvas {
+    max-width: 100%;
+    max-height: 100%;
+    touch-action: none;
+    cursor: crosshair;
+  }
+  .cutout-status {
+    font-size: 12px;
+    color: rgba(26,23,18,0.6);
+    line-height: 1.4;
+    margin-top: 10px;
+    min-height: 15px;
+  }
+  .cutout-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .cutout-btn {
+    font-family: 'Inter', sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--black);
+    background: var(--brass);
+    border: none;
+    border-radius: 999px;
+    padding: 8px 16px;
+    cursor: pointer;
+  }
+  .cutout-btn--quiet {
+    color: var(--cream);
+    background: var(--charcoal);
+  }
+
+  .add-item-error {
+    font-size: 12.5px;
+    color: #B3453A;
+    display: none;
+    margin-bottom: 14px;
+  }
+
+  .add-item-submit {
+    width: 100%;
+    background: var(--brass);
+    color: var(--black);
+    font-weight: 600;
+    font-size: 14px;
+    padding: 13px 26px;
+    border-radius: 999px;
+    border: none;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
@@ -570,7 +846,10 @@
     <div class="wardrobe-tape-content">
       <h1>Wardrobe</h1>
       <p>Everything you own, sorted into wardrobes you actually reach for.</p>
-      <button class="how-it-works-btn" id="howItWorksBtn" type="button">How it works</button>
+      <div class="header-actions">
+        <button class="how-it-works-btn" id="howItWorksBtn" type="button">How it works</button>
+        <button class="add-item-trigger-btn" id="addItemGlobalBtn" type="button">+ Add item</button>
+      </div>
     </div>
   </a>
 
@@ -597,6 +876,9 @@
     <div id="stepperMount"></div>
   </div>
 </div>
+
+<!-- ---- Add Item modal (built by add-item.js) ---- -->
+<div id="addItemMount"></div>
 
 <script type="module" src="wardrobe.js"></script>
 </body>
