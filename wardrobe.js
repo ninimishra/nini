@@ -64,6 +64,10 @@ function monogramImage(name) {
   return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
 }
 
+function wardrobeHref(entry) {
+  return "wardrobe-detail.html?id=" + encodeURIComponent(entry.id) + "&name=" + encodeURIComponent(entry.name);
+}
+
 // ---- storage ----
 function loadWardrobes() {
   try {
@@ -202,13 +206,13 @@ function init() {
       entry.name = trimmed;
       nameInput.value = trimmed;
       saveWardrobes(wardrobes);
-      openBtn.href = "coming-soon.html?title=" + encodeURIComponent(entry.name);
+      openBtn.href = wardrobeHref(entry);
     });
     card.appendChild(nameInput);
 
     const openBtn = document.createElement("a");
     openBtn.className = "wardrobe-open-btn";
-    openBtn.href = "coming-soon.html?title=" + encodeURIComponent(entry.name);
+    openBtn.href = wardrobeHref(entry);
     openBtn.innerHTML = "<span>Open</span>";
     card.appendChild(openBtn);
     mountSpecularButton(openBtn, specularCommon);
