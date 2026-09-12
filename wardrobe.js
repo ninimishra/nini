@@ -14,6 +14,7 @@ import { mountStepper } from "./stepper.js";
 import { mountSpecularButton } from "./specular-button.js";
 
 const STORAGE_KEY = "cultr:wardrobes";
+const ITEMS_KEY = "cultr:wardrobe-items";
 
 const CATEGORIES = ["All", "Tops", "Bottoms", "Shoes", "Accessories", "Outerwear", "Dresses"];
 
@@ -84,6 +85,20 @@ function loadWardrobes() {
 
 function saveWardrobes(list) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+}
+
+// Items belong to a wardrobe by id (see wardrobe-detail.js). When a
+// wardrobe is deleted, its items would otherwise sit around orphaned in
+// localStorage forever, so clear them out too.
+function deleteItemsForWardrobe(wardrobeId) {
+  try {
+    const raw = localStorage.getItem(ITEMS_KEY);
+    const items = raw ? JSON.parse(raw) : [];
+    const filtered = Array.isArray(items) ? items.filter((it) => it.wardrobeId !== wardrobeId) : [];
+    localStorage.setItem(ITEMS_KEY, JSON.stringify(filtered));
+  } catch (e) {
+    // ignore — nothing to clean up
+  }
 }
 
 // ---- specular button styling shared with the homepage's nav pills ----
@@ -187,7 +202,7 @@ function init() {
     stage.className = "wardrobe-card-stage";
     card.appendChild(stage);
 
-    mountTiltedCard(stage, {
+    const tiltedCard = mountTiltedCard(stage, {
       imageSrc: monogramImage(entry.name),
       altText: entry.name,
       captionText: entry.name,
@@ -195,6 +210,25 @@ function init() {
       scaleOnHover: 1.06,
       showTooltip: true
     });
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "wardrobe-card-delete";
+    deleteBtn.innerHTML = "&times;";
+    deleteBtn.setAttribute("aria-label", 'Delete "' + entry.name + '"');
+    deleteBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const confirmed = window.confirm('Delete "' + entry.name + '"? This can\'t be undone.');
+      if (!confirmed) return;
+      wardrobes = wardrobes.filter((w) => w.id !== entry.id);
+      saveWardrobes(wardrobes);
+      deleteItemsForWardrobe(entry.id);
+      tiltedCard.destroy();
+      specular.destroy();
+      card.remove();
+    });
+    stage.appendChild(deleteBtn);
 
     const nameInput = document.createElement("input");
     nameInput.type = "text";
@@ -215,7 +249,7 @@ function init() {
     openBtn.href = wardrobeHref(entry);
     openBtn.innerHTML = "<span>Open</span>";
     card.appendChild(openBtn);
-    mountSpecularButton(openBtn, specularCommon);
+    const specular = mountSpecularButton(openBtn, specularCommon);
 
     grid.insertBefore(card, addCard);
   }

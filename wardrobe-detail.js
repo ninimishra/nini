@@ -10,6 +10,8 @@
 // save helpers below with getDocs/addDoc/onSnapshot, the same shape
 // journal.js and clothes.js already use for their collections.
 
+import { mountCutoutPanel } from "./cutout.js";
+
 const WARDROBES_KEY = "cultr:wardrobes";
 const ITEMS_KEY = "cultr:wardrobe-items";
 
@@ -69,16 +71,6 @@ function resizeImage(file, maxSize) {
   });
 }
 
-// ---- reserved for the future AI feature: given the full uploaded photo,
-// this will locate and crop out just the garment (background removal /
-// bounding-box extraction) so the item box shows a clean cutout instead
-// of the whole photo. Not built yet — for now it's a pass-through so the
-// rest of the add-item flow already has the right shape to call it. ----
-async function extractItemFromPhoto(photoDataUrl) {
-  // TODO: replace with a real crop/segmentation step.
-  return photoDataUrl;
-}
-
 function getQueryParam(name) {
   return new URLSearchParams(window.location.search).get(name);
 }
@@ -99,13 +91,14 @@ function init() {
   const form = document.getElementById("addItemForm");
   const photoInput = document.getElementById("itemPhotoInput");
   const photoDropText = document.getElementById("photoDropText");
-  const photoPreview = document.getElementById("photoPreview");
+  const cutoutMount = document.getElementById("cutoutMount");
   const categorySelect = document.getElementById("itemCategorySelect");
   const wardrobeSelect = document.getElementById("itemWardrobeSelect");
   const errorEl = document.getElementById("addItemError");
 
   let items = loadItems();
   let selectedPhotoData = null;
+  let cutoutPanel = null;
 
   const rowEls = {};
 
@@ -174,7 +167,10 @@ function init() {
   function resetForm() {
     form.reset();
     selectedPhotoData = null;
-    photoPreview.style.display = "none";
+    if (cutoutPanel) {
+      cutoutPanel.destroy();
+      cutoutPanel = null;
+    }
     photoDropText.style.display = "block";
     errorEl.style.display = "none";
     populateWardrobeSelect();
@@ -202,9 +198,9 @@ function init() {
     if (!file) return;
     resizeImage(file, 700).then((dataUrl) => {
       selectedPhotoData = dataUrl;
-      photoPreview.src = dataUrl;
-      photoPreview.style.display = "block";
       photoDropText.style.display = "none";
+      if (cutoutPanel) cutoutPanel.destroy();
+      cutoutPanel = mountCutoutPanel(cutoutMount, { photoDataUrl: dataUrl });
     });
   });
 
@@ -224,10 +220,7 @@ function init() {
       return;
     }
     const category = categorySelect.value;
-
-    // Placeholder step for the future AI auto-crop — currently a
-    // pass-through, see extractItemFromPhoto() above.
-    const finalImage = await extractItemFromPhoto(selectedPhotoData);
+    const finalImage = cutoutPanel ? cutoutPanel.getResult() : selectedPhotoData;
 
     const newItem = {
       id: "item-" + Date.now(),

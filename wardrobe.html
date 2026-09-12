@@ -199,8 +199,37 @@
   }
 
   .wardrobe-card-stage {
+    position: relative;
     width: 100%;
     aspect-ratio: 4/5;
+  }
+
+  .wardrobe-card-delete {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    border: none;
+    background: rgba(26,23,18,0.55);
+    color: #fff;
+    font-size: 17px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease, background 0.15s ease;
+  }
+  .wardrobe-card-stage:hover .wardrobe-card-delete,
+  .wardrobe-card-delete:focus {
+    opacity: 1;
+  }
+  .wardrobe-card-delete:hover {
+    background: #B3453A;
   }
 
   .wardrobe-card-name {
