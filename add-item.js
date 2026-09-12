@@ -5,6 +5,11 @@
 // add to others at the same time). Creates one item per selected
 // wardrobe so "add to multiple" really does file separate copies.
 //
+// The category dropdown is built from whichever wardrobes are currently
+// checked (union of their sections) — since sections are per-wardrobe
+// (see wardrobe-data.js / wardrobe-detail.js's "Add section"), picking
+// different wardrobes can change what categories are on offer.
+//
 // Usage:
 //   import { mountAddItemModal } from './add-item.js';
 //   const modal = mountAddItemModal(document.getElementById('addItemMount'), {
@@ -15,26 +20,8 @@
 //   modal.open();   // e.g. from a button's click handler
 
 import { mountCutoutPanel } from "./cutout.js";
+import { loadItems, saveItems, allCategories, STYLES, COLORS } from "./wardrobe-data.js";
 
-const ITEMS_KEY = "cultr:wardrobe-items";
-const CATEGORIES = ["Tops", "Bottoms", "Jeans", "Accessories"];
-
-function loadItems() {
-  try {
-    const raw = localStorage.getItem(ITEMS_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    return [];
-  }
-}
-
-function saveItems(items) {
-  localStorage.setItem(ITEMS_KEY, JSON.stringify(items));
-}
-
-// Same shrink-before-storing trick used elsewhere on the site (journal.js,
-// wardrobe-detail.js) so photos don't bloat localStorage.
 function resizeImage(file, maxSize) {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -87,17 +74,36 @@ export function mountAddItemModal(mount, opts = {}) {
       </div>
 
       <div class="add-item-field">
-        <label>Category</label>
-        <select class="js-category-select">
-          ${CATEGORIES.map((c) => '<option value="' + c + '">' + c + "</option>").join("")}
-        </select>
-      </div>
-
-      <div class="add-item-field">
         <label>Wardrobes</label>
         <div class="multiselect js-multiselect">
           <button type="button" class="multiselect-trigger">Select wardrobes ▾</button>
           <div class="multiselect-panel js-multiselect-panel"></div>
+        </div>
+      </div>
+
+      <div class="add-item-field">
+        <label>Category</label>
+        <select class="js-category-select"></select>
+      </div>
+
+      <div class="add-item-field">
+        <label>Colour</label>
+        <select class="js-color-select">
+          ${COLORS.map((c) => '<option value="' + c + '">' + c + "</option>").join("")}
+        </select>
+      </div>
+
+      <div class="add-item-field">
+        <label>Style</label>
+        <div class="tag-group js-style-group">
+          ${STYLES.map(
+            (s) =>
+              '<label class="tag-option"><input type="checkbox" value="' +
+              s +
+              '"><span>' +
+              s +
+              "</span></label>"
+          ).join("")}
         </div>
       </div>
 
@@ -116,6 +122,8 @@ export function mountAddItemModal(mount, opts = {}) {
   const photoDropText = modal.querySelector(".photo-drop-text");
   const cutoutMount = modal.querySelector(".js-cutout-mount");
   const categorySelect = modal.querySelector(".js-category-select");
+  const colorSelect = modal.querySelector(".js-color-select");
+  const styleGroup = modal.querySelector(".js-style-group");
   const multiselect = modal.querySelector(".js-multiselect");
   const multiselectTrigger = modal.querySelector(".multiselect-trigger");
   const multiselectPanel = modal.querySelector(".js-multiselect-panel");
@@ -131,8 +139,23 @@ export function mountAddItemModal(mount, opts = {}) {
     } else {
       const wardrobes = getWardrobes();
       const names = wardrobes.filter((w) => selectedWardrobeIds.includes(w.id)).map((w) => w.name);
-      multiselectTrigger.textContent = (names.join(", ") || (selectedWardrobeIds.length + " selected")) + " ▾";
+      multiselectTrigger.textContent = (names.join(", ") || selectedWardrobeIds.length + " selected") + " ▾";
     }
+  }
+
+  // Category options reflect whichever wardrobes are currently checked
+  // (union of their sections). With nothing checked yet, show the union
+  // across every wardrobe so the field isn't empty before you've picked one.
+  function refreshCategoryOptions() {
+    const wardrobes = getWardrobes();
+    const relevant =
+      selectedWardrobeIds.length > 0
+        ? wardrobes.filter((w) => selectedWardrobeIds.includes(w.id))
+        : wardrobes;
+    const cats = allCategories(relevant);
+    const previous = categorySelect.value;
+    categorySelect.innerHTML = cats.map((c) => '<option value="' + c + '">' + c + "</option>").join("");
+    if (cats.includes(previous)) categorySelect.value = previous;
   }
 
   function buildMultiselectPanel() {
@@ -152,6 +175,7 @@ export function mountAddItemModal(mount, opts = {}) {
           selectedWardrobeIds = selectedWardrobeIds.filter((id) => id !== w.id);
         }
         refreshMultiselectLabel();
+        refreshCategoryOptions();
       });
       const span = document.createElement("span");
       span.textContent = w.name;
@@ -191,7 +215,9 @@ export function mountAddItemModal(mount, opts = {}) {
     selectedWardrobeIds = defaultWardrobeIds.slice();
     buildMultiselectPanel();
     refreshMultiselectLabel();
+    refreshCategoryOptions();
     multiselect.classList.remove("is-open");
+    styleGroup.querySelectorAll("input[type=checkbox]").forEach((cb) => (cb.checked = false));
   }
 
   function open() {
@@ -226,6 +252,8 @@ export function mountAddItemModal(mount, opts = {}) {
     }
 
     const category = categorySelect.value;
+    const color = colorSelect.value;
+    const style = Array.from(styleGroup.querySelectorAll("input[type=checkbox]:checked")).map((cb) => cb.value);
     const finalImage = cutoutPanel ? cutoutPanel.getResult() : selectedPhotoData;
 
     const items = loadItems();
@@ -235,6 +263,8 @@ export function mountAddItemModal(mount, opts = {}) {
         id: "item-" + Date.now() + "-" + wardrobeId,
         wardrobeId,
         category,
+        color,
+        style,
         image: finalImage,
         createdAt: Date.now()
       };

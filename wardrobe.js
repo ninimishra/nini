@@ -1,42 +1,17 @@
 // ---- Cultr: Wardrobe overview page ----
 // Wires together the ported React Bits components (LineSidebar,
 // TiltedCard, Stepper) plus the shared Add Item modal into the Wardrobe
-// overview. No backend yet — the list of wardrobes lives in localStorage
-// on this device, the same way the rest of the site currently has
-// no-backend stubs (see README). The shape (id/name/coverImage) matches
-// what a future "wardrobes" Firestore collection could use, so wiring in
-// Firebase later is a straight swap of the load/save functions below for
-// getDocs/addDoc/onSnapshot calls like journal.js and clothes.js already do.
+// overview. Storage lives in wardrobe-data.js — see that file for the
+// no-backend-yet approach and the eventual Firestore swap-in point.
 
 import { mountLineSidebar } from "./line-sidebar.js";
 import { mountTiltedCard } from "./tilted-card.js";
 import { mountStepper } from "./stepper.js";
 import { mountSpecularButton } from "./specular-button.js";
 import { mountAddItemModal } from "./add-item.js";
-
-const STORAGE_KEY = "cultr:wardrobes";
-const ITEMS_KEY = "cultr:wardrobe-items";
-
-const CATEGORIES = ["All", "Tops", "Bottoms", "Shoes", "Accessories", "Outerwear", "Dresses"];
-
-const DEFAULT_WARDROBES = [
-  { id: "everyday-edit", name: "Everyday Edit" },
-  { id: "workwear", name: "Workwear" },
-  { id: "date-night", name: "Date Night" },
-  { id: "off-duty", name: "Off-Duty" }
-];
+import { loadWardrobes, saveWardrobes, deleteItemsForWardrobe, allCategories, slugify } from "./wardrobe-data.js";
 
 // ---- tiny helpers ----
-function slugify(name) {
-  return (
-    name
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "") || "wardrobe"
-  );
-}
-
 function hashHue(str) {
   let hash = 0;
   for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
@@ -102,38 +77,6 @@ function resizeImage(file, maxSize) {
   });
 }
 
-// ---- storage ----
-function loadWardrobes() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) throw new Error("no data yet");
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length) return parsed;
-    throw new Error("empty");
-  } catch (e) {
-    saveWardrobes(DEFAULT_WARDROBES);
-    return DEFAULT_WARDROBES.slice();
-  }
-}
-
-function saveWardrobes(list) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-}
-
-// Items belong to a wardrobe by id (see wardrobe-detail.js / add-item.js).
-// When a wardrobe is deleted, its items would otherwise sit around
-// orphaned in localStorage forever, so clear them out too.
-function deleteItemsForWardrobe(wardrobeId) {
-  try {
-    const raw = localStorage.getItem(ITEMS_KEY);
-    const items = raw ? JSON.parse(raw) : [];
-    const filtered = Array.isArray(items) ? items.filter((it) => it.wardrobeId !== wardrobeId) : [];
-    localStorage.setItem(ITEMS_KEY, JSON.stringify(filtered));
-  } catch (e) {
-    // ignore — nothing to clean up
-  }
-}
-
 // ---- specular button styling shared with the homepage's nav pills ----
 const specularCommon = {
   radius: 999,
@@ -160,9 +103,13 @@ function init() {
   const addItemBtn = document.getElementById("addItemGlobalBtn");
   const addItemMount = document.getElementById("addItemMount");
 
-  // ---- LineSidebar: browse by category ----
+  // ---- Wardrobe cards ----
+  let wardrobes = loadWardrobes();
+
+  // ---- LineSidebar: browse by category, across every wardrobe's sections ----
+  const sidebarItems = ["All"].concat(allCategories(wardrobes));
   mountLineSidebar(sidebarMount, {
-    items: CATEGORIES,
+    items: sidebarItems,
     accentColor: "#B08A4E",
     textColor: "#1A1712",
     markerColor: "rgba(26,23,18,0.35)",
@@ -181,7 +128,7 @@ function init() {
     defaultActive: 0,
     onItemClick: (index, label) => {
       if (label === "All") return;
-      window.location.href = "coming-soon.html?title=" + encodeURIComponent(label);
+      window.location.href = "category.html?name=" + encodeURIComponent(label);
     }
   });
 
@@ -200,11 +147,11 @@ function init() {
       },
       {
         title: "Browse by category",
-        bodyHTML: "<p>Use the sidebar to jump straight to tops, bottoms, shoes or accessories across everything you've catalogued.</p>"
+        bodyHTML: "<p>Use the sidebar to jump straight to any section — tops, bottoms, or custom ones you've added — across everything you've catalogued.</p>"
       },
       {
-        title: "Open a wardrobe any time",
-        bodyHTML: "<p>Tap into a wardrobe whenever you're getting dressed or planning an outfit — it's all right where you left it.</p>"
+        title: "Build an outfit",
+        bodyHTML: "<p>Drag pieces from your wardrobe onto the mannequin to put a look together, then save it to Looks so you can find it again.</p>"
       }
     ],
     onFinalStepCompleted: () => closeStepper()
@@ -225,9 +172,6 @@ function init() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeStepper();
   });
-
-  // ---- Wardrobe cards ----
-  let wardrobes = loadWardrobes();
 
   function renderCard(entry) {
     const card = document.createElement("div");
@@ -327,7 +271,11 @@ function init() {
   wardrobes.forEach(renderCard);
 
   addCard.addEventListener("click", () => {
-    const entry = { id: slugify("wardrobe-" + Date.now()), name: "New Wardrobe" };
+    const entry = {
+      id: slugify("wardrobe-" + Date.now()),
+      name: "New Wardrobe",
+      categories: ["Tops", "Bottoms", "Jeans", "Accessories"]
+    };
     wardrobes.push(entry);
     saveWardrobes(wardrobes);
     renderCard(entry);

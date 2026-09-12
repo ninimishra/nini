@@ -241,7 +241,14 @@
     align-items: center;
     gap: 10px;
   }
+  .quick-links {
+    display: flex;
+    gap: 10px;
+    margin: 18px 0 0;
+  }
   .add-item-trigger-btn {
+    display: inline-flex;
+    align-items: center;
     font-family: 'Inter', sans-serif;
     font-size: 13px;
     font-weight: 600;
@@ -252,6 +259,7 @@
     border-radius: 999px;
     padding: 11px 22px;
     cursor: pointer;
+    text-decoration: none;
     transition: background 0.15s ease;
   }
   .add-item-trigger-btn:hover { background: rgba(176,138,78,0.14); }
@@ -646,6 +654,25 @@
   }
   .multiselect-option:hover { background: rgba(176,138,78,0.14); }
 
+  .tag-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .tag-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--cream);
+    background: var(--charcoal);
+    border: 1px solid rgba(26,23,18,0.15);
+    border-radius: 999px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  .tag-option input { accent-color: #B08A4E; }
+
   /* ---- Add Item modal ---- */
   .add-item-overlay {
     position: fixed;
@@ -852,6 +879,11 @@
       </div>
     </div>
   </a>
+
+  <div class="quick-links">
+    <a class="add-item-trigger-btn" href="outfit-builder.html">Build an outfit</a>
+    <a class="add-item-trigger-btn" href="looks.html">Looks</a>
+  </div>
 
   <div class="wardrobe-layout">
     <aside class="wardrobe-sidebar">

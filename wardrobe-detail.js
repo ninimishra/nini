@@ -1,47 +1,20 @@
 // ---- Cultr: Wardrobe detail page ----
-// Shows one wardrobe's items grouped into rows by category, and lets you
-// add a new item (photo + category + which wardrobe(s) it belongs to,
-// via the shared Add Item modal in add-item.js).
+// Shows one wardrobe's items grouped into rows by section (Tops,
+// Bottoms, Jeans, Accessories by default — but sections are per-wardrobe
+// and editable here: add a new one, rename one, or delete an empty one).
+// Adding items goes through the shared Add Item modal in add-item.js.
 //
-// Storage (localStorage, same no-backend-yet approach as wardrobe.js):
-//   cultr:wardrobes       -> [{ id, name, coverImage }, ...]  (written by wardrobe.js)
-//   cultr:wardrobe-items  -> [{ id, wardrobeId, category, image, createdAt }, ...]
-//
-// Swapping this for Firestore later is a matter of replacing the load/
-// save helpers below with getDocs/addDoc/onSnapshot, the same shape
-// journal.js and clothes.js already use for their collections.
+// Storage lives in wardrobe-data.js.
 
 import { mountAddItemModal } from "./add-item.js";
-
-const WARDROBES_KEY = "cultr:wardrobes";
-const ITEMS_KEY = "cultr:wardrobe-items";
-
-const CATEGORIES = ["Tops", "Bottoms", "Jeans", "Accessories"];
-
-// ---- storage helpers ----
-function loadWardrobes() {
-  try {
-    const raw = localStorage.getItem(WARDROBES_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    return [];
-  }
-}
-
-function loadItems() {
-  try {
-    const raw = localStorage.getItem(ITEMS_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    return [];
-  }
-}
-
-function saveItems(items) {
-  localStorage.setItem(ITEMS_KEY, JSON.stringify(items));
-}
+import {
+  loadWardrobes,
+  saveWardrobes,
+  loadItems,
+  saveItems,
+  renameCategoryOnItems,
+  DEFAULT_CATEGORIES
+} from "./wardrobe-data.js";
 
 function getQueryParam(name) {
   return new URLSearchParams(window.location.search).get(name);
@@ -59,27 +32,22 @@ function init() {
   const itemRowsMount = document.getElementById("itemRows");
   const addItemBtn = document.getElementById("addItemBtn");
   const addItemMount = document.getElementById("addItemMount");
+  const addSectionBtn = document.getElementById("addSectionBtn");
 
   let items = loadItems();
   const rowEls = {};
 
-  // ---- build the four category rows ----
-  CATEGORIES.forEach((category) => {
-    const section = document.createElement("div");
-    section.className = "item-row-section";
+  function currentCategories() {
+    if (!currentWardrobe) return DEFAULT_CATEGORIES.slice();
+    if (!Array.isArray(currentWardrobe.categories) || currentWardrobe.categories.length === 0) {
+      currentWardrobe.categories = DEFAULT_CATEGORIES.slice();
+    }
+    return currentWardrobe.categories;
+  }
 
-    const title = document.createElement("div");
-    title.className = "item-row-title";
-    title.textContent = category;
-    section.appendChild(title);
-
-    const row = document.createElement("div");
-    row.className = "item-row";
-    section.appendChild(row);
-
-    itemRowsMount.appendChild(section);
-    rowEls[category] = row;
-  });
+  function persistWardrobes() {
+    saveWardrobes(wardrobes);
+  }
 
   function deleteItem(itemId) {
     items = items.filter((it) => it.id !== itemId);
@@ -87,8 +55,97 @@ function init() {
     renderAllRows();
   }
 
+  function buildRow(category) {
+    const section = document.createElement("div");
+    section.className = "item-row-section";
+
+    const titleRow = document.createElement("div");
+    titleRow.className = "item-row-title-bar";
+
+    const title = document.createElement("span");
+    title.className = "item-row-title";
+    title.textContent = category;
+    title.title = "Double-click to rename";
+    title.addEventListener("dblclick", () => startRename(category, title, section));
+    titleRow.appendChild(title);
+
+    const removeSectionBtn = document.createElement("button");
+    removeSectionBtn.type = "button";
+    removeSectionBtn.className = "item-row-remove";
+    removeSectionBtn.innerHTML = "&times;";
+    removeSectionBtn.setAttribute("aria-label", 'Remove "' + category + '" section');
+    removeSectionBtn.addEventListener("click", () => removeSection(category, section));
+    titleRow.appendChild(removeSectionBtn);
+
+    section.appendChild(titleRow);
+
+    const row = document.createElement("div");
+    row.className = "item-row";
+    section.appendChild(row);
+
+    rowEls[category] = row;
+    itemRowsMount.insertBefore(section, addSectionBtn);
+    return section;
+  }
+
+  function startRename(oldName, titleEl, section) {
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "item-row-title-input";
+    input.value = oldName;
+    titleEl.replaceWith(input);
+    input.focus();
+    input.select();
+
+    function commit() {
+      const newName = input.value.trim();
+      if (!newName || newName === oldName) {
+        input.replaceWith(titleEl);
+        return;
+      }
+      const cats = currentCategories();
+      const idx = cats.indexOf(oldName);
+      if (idx !== -1) cats[idx] = newName;
+      persistWardrobes();
+      renameCategoryOnItems(wardrobeId, oldName, newName);
+      items = loadItems();
+
+      rowEls[newName] = rowEls[oldName];
+      delete rowEls[oldName];
+      titleEl.textContent = newName;
+      titleEl.title = "Double-click to rename";
+      input.replaceWith(titleEl);
+      renderRow(newName);
+    }
+
+    input.addEventListener("blur", commit);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") input.blur();
+      if (e.key === "Escape") {
+        input.value = oldName;
+        input.blur();
+      }
+    });
+  }
+
+  function removeSection(category, section) {
+    const hasItems = items.some((it) => it.wardrobeId === wardrobeId && it.category === category);
+    if (hasItems) {
+      window.alert('Move or remove everything in "' + category + '" before deleting the section.');
+      return;
+    }
+    if (!window.confirm('Remove the "' + category + '" section?')) return;
+    const cats = currentCategories();
+    const idx = cats.indexOf(category);
+    if (idx !== -1) cats.splice(idx, 1);
+    persistWardrobes();
+    delete rowEls[category];
+    section.remove();
+  }
+
   function renderRow(category) {
     const row = rowEls[category];
+    if (!row) return;
     row.innerHTML = "";
     const inCategory = items.filter((it) => it.wardrobeId === wardrobeId && it.category === category);
 
@@ -108,6 +165,8 @@ function init() {
       img.src = it.image;
       img.alt = category;
       img.loading = "lazy";
+      const tags = [it.color, ...(it.style || [])].filter(Boolean);
+      if (tags.length) img.title = tags.join(" · ");
       box.appendChild(img);
 
       const deleteBtn = document.createElement("button");
@@ -125,9 +184,32 @@ function init() {
   }
 
   function renderAllRows() {
-    CATEGORIES.forEach(renderRow);
+    // Rebuild from scratch so sections added/renamed/removed elsewhere
+    // (or items whose section no longer exists) stay in sync.
+    itemRowsMount.querySelectorAll(".item-row-section").forEach((el) => el.remove());
+    Object.keys(rowEls).forEach((k) => delete rowEls[k]);
+    currentCategories().forEach((category) => {
+      buildRow(category);
+      renderRow(category);
+    });
   }
   renderAllRows();
+
+  addSectionBtn.addEventListener("click", () => {
+    const name = window.prompt("Name this section (e.g. Scarves, Bags, Shoes):");
+    if (!name) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const cats = currentCategories();
+    if (cats.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+      window.alert('A section called "' + trimmed + '" already exists.');
+      return;
+    }
+    cats.push(trimmed);
+    persistWardrobes();
+    buildRow(trimmed);
+    renderRow(trimmed);
+  });
 
   // ---- Add Item modal (shared with the Wardrobe overview page) ----
   const addItemModal = mountAddItemModal(addItemMount, {
