@@ -14,12 +14,60 @@ import {
   allCategories,
   STYLES,
   onAuthChange,
-  ensureUserData
+  ensureUserData,
+  loadMannequinShape,
+  saveMannequinShape
 } from "./wardrobe-data.js";
-import { mountAcidSquares } from "./acid-squares.js";
 
 const MIN_WIDTH_PERCENT = 12;
 const MAX_WIDTH_PERCENT = 90;
+
+// Height bands (as % down the figure) the "Edit figure" tool can push
+// in or out. Interpolated smoothly between bands when drawing.
+const FIGURE_BANDS = [12, 22, 32, 42, 52, 62, 72, 82, 92];
+const MAX_DELTA = 0.35;
+
+function bandDeltaAt(shape, yPercent) {
+  if (!shape || shape.length === 0) return 0;
+  const sorted = shape.slice().sort((a, b) => a.yPercent - b.yPercent);
+  if (yPercent <= sorted[0].yPercent) return sorted[0].delta;
+  if (yPercent >= sorted[sorted.length - 1].yPercent) return sorted[sorted.length - 1].delta;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i];
+    const b = sorted[i + 1];
+    if (yPercent >= a.yPercent && yPercent <= b.yPercent) {
+      const t = (yPercent - a.yPercent) / (b.yPercent - a.yPercent);
+      return a.delta + (b.delta - a.delta) * t;
+    }
+  }
+  return 0;
+}
+
+// Draws the mannequin line-art onto the canvas, optionally warped per the
+// saved shape (each band pushes that height in/out horizontally). When
+// every band is at its default (no customization yet), this just draws
+// the image once — the row-by-row warp pass only runs when needed.
+function drawMannequin(canvas, img, shape) {
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const hasCustomShape = shape.some((b) => Math.abs(b.delta) > 0.001);
+  if (!hasCustomShape) {
+    ctx.drawImage(img, 0, 0, w, h);
+    return;
+  }
+
+  for (let y = 0; y < h; y++) {
+    const yPercent = (y / h) * 100;
+    const scale = 1 + bandDeltaAt(shape, yPercent);
+    const destW = w * scale;
+    const destX = (w - destW) / 2;
+    const srcY = (y / h) * img.naturalHeight;
+    ctx.drawImage(img, 0, srcY, img.naturalWidth, 1, destX, y, destW, 1);
+  }
+}
 
 function init() {
   const wardrobes = loadWardrobes();
@@ -34,34 +82,10 @@ function init() {
   const saveBtn = document.getElementById("saveLookBtn");
   const clearBtn = document.getElementById("clearStageBtn");
   const saveStatus = document.getElementById("saveStatus");
-  const acidMount = document.getElementById("acidBgMount");
-
-  // ---- soft animated backdrop behind the mannequin ----
-  mountAcidSquares(acidMount, {
-    color1: "#5b21b6",
-    color2: "#ec4899",
-    color3: "#06b6d4",
-    detail: "medium",
-    speed: 0.7,
-    waveDepth: 1,
-    zoom: 1.3,
-    density: 10.0,
-    glow: 0.48,
-    exposure: 2250,
-    spread: 0.3,
-    stepSize: 0.002,
-    colorShift: 0,
-    contrast: 1,
-    brightness: 1.0,
-    opacity: 1.0,
-    mouseInteraction: true,
-    mouseStrength: 0.1,
-    mouseRadius: 0.35,
-    blur: 0,
-    grain: true,
-    grainIntensity: 0.025,
-    lightMode: true
-  });
+  const editFigureBtn = document.getElementById("editFigureBtn");
+  const doneFigureBtn = document.getElementById("doneFigureBtn");
+  const mannequinBase = document.getElementById("mannequinBase");
+  const figureEditLayer = document.getElementById("figureEditLayer");
 
   // ---- filters ----
   wardrobes.forEach((w) => {
@@ -124,6 +148,100 @@ function init() {
 
   [filterWardrobe, filterCategory, filterStyle].forEach((el) => el.addEventListener("change", renderSearchGrid));
   renderSearchGrid();
+
+  // ---- mannequin figure: load once, draw plain or warped, and the
+  // "Edit figure" tool for pushing bands of it in/out ----
+  let figureShape = loadMannequinShape();
+  if (figureShape.length === 0) {
+    figureShape = FIGURE_BANDS.map((yPercent) => ({ yPercent, delta: 0 }));
+  }
+  const mannequinImg = new Image();
+  let mannequinLoaded = false;
+  mannequinImg.onload = () => {
+    mannequinLoaded = true;
+    drawMannequin(mannequinBase, mannequinImg, figureShape);
+  };
+  mannequinImg.src = "mannequin.png";
+
+  let editingFigure = false;
+  let handleEls = [];
+
+  function redrawFigure() {
+    if (mannequinLoaded) drawMannequin(mannequinBase, mannequinImg, figureShape);
+  }
+
+  function buildHandles() {
+    figureEditLayer.innerHTML = "";
+    handleEls = figureShape.map((band) => {
+      const handle = document.createElement("div");
+      handle.className = "figure-handle";
+      positionHandle(handle, band);
+      figureEditLayer.appendChild(handle);
+      makeHandleDraggable(handle, band);
+      return handle;
+    });
+    const hint = document.createElement("div");
+    hint.className = "figure-edit-hint";
+    hint.textContent = "Drag a handle in or out to reshape that part of the figure";
+    figureEditLayer.appendChild(hint);
+  }
+
+  function positionHandle(handle, band) {
+    const xPercent = 78 + band.delta * 40;
+    handle.style.left = xPercent + "%";
+    handle.style.top = band.yPercent + "%";
+  }
+
+  function makeHandleDraggable(handle, band) {
+    let dragging = false;
+    let startX = 0;
+    let startDelta = 0;
+
+    handle.addEventListener("pointerdown", (e) => {
+      dragging = true;
+      handle.setPointerCapture(e.pointerId);
+      startX = e.clientX;
+      startDelta = band.delta;
+    });
+
+    handle.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      const stageRect = stage.getBoundingClientRect();
+      const deltaPx = e.clientX - startX;
+      const deltaChange = deltaPx / (stageRect.width * 0.4);
+      band.delta = Math.max(-MAX_DELTA, Math.min(MAX_DELTA, startDelta + deltaChange));
+      positionHandle(handle, band);
+      redrawFigure();
+    });
+
+    function endDrag(e) {
+      if (!dragging) return;
+      dragging = false;
+      try {
+        handle.releasePointerCapture(e.pointerId);
+      } catch (err) {
+        // ignore
+      }
+      saveMannequinShape(figureShape);
+    }
+    handle.addEventListener("pointerup", endDrag);
+    handle.addEventListener("pointercancel", endDrag);
+  }
+
+  editFigureBtn.addEventListener("click", () => {
+    editingFigure = true;
+    editFigureBtn.style.display = "none";
+    doneFigureBtn.style.display = "inline-flex";
+    buildHandles();
+  });
+
+  doneFigureBtn.addEventListener("click", () => {
+    editingFigure = false;
+    doneFigureBtn.style.display = "none";
+    editFigureBtn.style.display = "inline-flex";
+    figureEditLayer.innerHTML = "";
+    saveMannequinShape(figureShape);
+  });
 
   // ---- mannequin stage: drop new items, drag placed items around, resize them ----
   let placedItems = []; // { image, xPercent, yPercent, widthPercent, el }

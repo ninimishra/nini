@@ -22,6 +22,48 @@ function getQueryParam(name) {
   return new URLSearchParams(window.location.search).get(name);
 }
 
+const MIN_ITEM_WIDTH = 90;
+const MAX_ITEM_WIDTH = 420;
+
+// Drag the corner handle to make an item's image bigger or smaller in
+// this wardrobe view; the chosen size is saved on the item itself.
+function makeItemBoxResizable(handle, box, item) {
+  let resizing = false;
+  let startX = 0;
+  let startWidth = 0;
+
+  handle.addEventListener("pointerdown", (e) => {
+    e.stopPropagation();
+    resizing = true;
+    handle.setPointerCapture(e.pointerId);
+    startX = e.clientX;
+    startWidth = box.getBoundingClientRect().width;
+  });
+
+  handle.addEventListener("pointermove", (e) => {
+    if (!resizing) return;
+    const deltaPx = e.clientX - startX;
+    const newWidth = Math.max(MIN_ITEM_WIDTH, Math.min(MAX_ITEM_WIDTH, startWidth + deltaPx));
+    item.displayWidth = Math.round(newWidth);
+    box.style.width = item.displayWidth + "px";
+  });
+
+  function endResize(e) {
+    if (!resizing) return;
+    resizing = false;
+    try {
+      handle.releasePointerCapture(e.pointerId);
+    } catch (err) {
+      // ignore
+    }
+    // item.displayWidth was already mutated in place above (same object
+    // reference as in the stored items array) — this just triggers the save.
+    saveItems(loadItems());
+  }
+  handle.addEventListener("pointerup", endResize);
+  handle.addEventListener("pointercancel", endResize);
+}
+
 function init() {
   const wardrobeId = getQueryParam("id") || "";
   const wardrobes = loadWardrobes();
@@ -162,6 +204,7 @@ function init() {
     inCategory.forEach((it) => {
       const box = document.createElement("div");
       box.className = "item-box";
+      box.style.width = (it.displayWidth || 230) + "px";
 
       const img = document.createElement("img");
       img.src = it.image;
@@ -180,6 +223,12 @@ function init() {
         if (window.confirm("Remove this item?")) deleteItem(it.id);
       });
       box.appendChild(deleteBtn);
+
+      const resizeHandle = document.createElement("div");
+      resizeHandle.className = "item-box-resize";
+      resizeHandle.setAttribute("aria-label", "Resize item image");
+      makeItemBoxResizable(resizeHandle, box, it);
+      box.appendChild(resizeHandle);
 
       row.appendChild(box);
     });

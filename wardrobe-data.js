@@ -97,7 +97,8 @@ export async function ensureUserData() {
     cache = {
       wardrobes: Array.isArray(data.wardrobes) && data.wardrobes.length ? data.wardrobes : seedDefaultWardrobes(),
       items: Array.isArray(data.items) ? data.items : [],
-      looks: Array.isArray(data.looks) ? data.looks : []
+      looks: Array.isArray(data.looks) ? data.looks : [],
+      mannequinShape: Array.isArray(data.mannequinShape) ? data.mannequinShape : []
     };
     // Migrate wardrobes saved before per-wardrobe sections existed.
     let needsWrite = !Array.isArray(data.wardrobes) || data.wardrobes.length === 0;
@@ -110,7 +111,7 @@ export async function ensureUserData() {
     currentUid = user.uid;
     if (needsWrite) await setDoc(ref, cache, { merge: true });
   } else {
-    cache = { wardrobes: seedDefaultWardrobes(), items: [], looks: [] };
+    cache = { wardrobes: seedDefaultWardrobes(), items: [], looks: [], mannequinShape: [] };
     currentUid = user.uid;
     await setDoc(ref, cache);
   }
@@ -190,5 +191,19 @@ export function loadLooks() {
 export function saveLooks(looks) {
   if (!cache) return;
   cache.looks = looks;
+  persist();
+}
+
+// ---- mannequin shape ----
+// A small set of control points { yPercent, delta } describing how much
+// wider/narrower the figure is at each height band, from the "Edit
+// figure" tool on the outfit builder page. Stored per account so it
+// carries over between sessions.
+export function loadMannequinShape() {
+  return cache && Array.isArray(cache.mannequinShape) ? cache.mannequinShape : [];
+}
+export function saveMannequinShape(shape) {
+  if (!cache) return;
+  cache.mannequinShape = shape;
   persist();
 }
