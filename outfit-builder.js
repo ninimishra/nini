@@ -19,8 +19,8 @@ import {
   saveMannequinShape
 } from "./wardrobe-data.js";
 
-const MIN_WIDTH_PERCENT = 12;
-const MAX_WIDTH_PERCENT = 90;
+const MIN_WIDTH_PERCENT = 8;
+const MAX_WIDTH_PERCENT = 260;
 
 // Height bands (as % down the figure) the "Edit figure" tool can push
 // in or out. Interpolated smoothly between bands when drawing.
@@ -43,10 +43,17 @@ function bandDeltaAt(shape, yPercent) {
   return 0;
 }
 
+// How far from the horizontal center the "stretchy" torso region
+// extends, as a fraction of the canvas width. Outside this, pixels
+// (arms, hands) are shifted rigidly to stay attached to the torso's new
+// edge, rather than being stretched themselves — this is what stops a
+// wider waist from dragging the forearms into a stretched mess.
+const TORSO_RADIUS_FRACTION = 0.26;
+
 // Draws the mannequin line-art onto the canvas, optionally warped per the
-// saved shape (each band pushes that height in/out horizontally). When
-// every band is at its default (no customization yet), this just draws
-// the image once — the row-by-row warp pass only runs when needed.
+// saved shape (each band pushes that height's torso in/out). Arms and
+// anything else away from center move as a rigid block rather than
+// stretching, so widening the waist doesn't distort the forearms.
 function drawMannequin(canvas, img, shape) {
   const ctx = canvas.getContext("2d");
   const w = canvas.width;
@@ -59,13 +66,39 @@ function drawMannequin(canvas, img, shape) {
     return;
   }
 
+  const destScale = w / img.naturalWidth;
+  const cxSrc = img.naturalWidth / 2;
+  const cxDest = w / 2;
+  const torsoRadiusSrc = img.naturalWidth * TORSO_RADIUS_FRACTION;
+  const leftBoundarySrc = cxSrc - torsoRadiusSrc;
+  const rightBoundarySrc = cxSrc + torsoRadiusSrc;
+  const leftRegionWidthSrc = leftBoundarySrc;
+  const rightRegionWidthSrc = img.naturalWidth - rightBoundarySrc;
+  const centerSrcWidth = rightBoundarySrc - leftBoundarySrc;
+  const leftRegionWidthDest = leftRegionWidthSrc * destScale;
+  const rightRegionWidthDest = rightRegionWidthSrc * destScale;
+  const torsoRadiusDest = torsoRadiusSrc * destScale;
+
   for (let y = 0; y < h; y++) {
     const yPercent = (y / h) * 100;
     const scale = 1 + bandDeltaAt(shape, yPercent);
-    const destW = w * scale;
-    const destX = (w - destW) / 2;
     const srcY = (y / h) * img.naturalHeight;
-    ctx.drawImage(img, 0, srcY, img.naturalWidth, 1, destX, y, destW, 1);
+
+    const newHalfWidthDest = torsoRadiusDest * scale;
+    const leftBoundaryDest = cxDest - newHalfWidthDest;
+    const rightBoundaryDest = cxDest + newHalfWidthDest;
+
+    // Left region (arm side) — drawn at its native size, just shifted to
+    // stay attached to the torso's new edge, never stretched itself.
+    if (leftRegionWidthSrc > 0) {
+      ctx.drawImage(img, 0, srcY, leftRegionWidthSrc, 1, leftBoundaryDest - leftRegionWidthDest, y, leftRegionWidthDest, 1);
+    }
+    // Center torso — the only part that actually stretches.
+    ctx.drawImage(img, leftBoundarySrc, srcY, centerSrcWidth, 1, leftBoundaryDest, y, newHalfWidthDest * 2, 1);
+    // Right region (other arm side) — shifted, not stretched.
+    if (rightRegionWidthSrc > 0) {
+      ctx.drawImage(img, rightBoundarySrc, srcY, rightRegionWidthSrc, 1, rightBoundaryDest, y, rightRegionWidthDest, 1);
+    }
   }
 }
 
@@ -84,6 +117,7 @@ function init() {
   const saveStatus = document.getElementById("saveStatus");
   const editFigureBtn = document.getElementById("editFigureBtn");
   const doneFigureBtn = document.getElementById("doneFigureBtn");
+  const resetFigureBtn = document.getElementById("resetFigureBtn");
   const mannequinBase = document.getElementById("mannequinBase");
   const figureEditLayer = document.getElementById("figureEditLayer");
 
@@ -241,6 +275,16 @@ function init() {
     editFigureBtn.style.display = "inline-flex";
     figureEditLayer.innerHTML = "";
     saveMannequinShape(figureShape);
+  });
+
+  resetFigureBtn.addEventListener("click", () => {
+    if (!window.confirm("Reset the figure back to its original shape?")) return;
+    figureShape.forEach((band) => {
+      band.delta = 0;
+    });
+    redrawFigure();
+    saveMannequinShape(figureShape);
+    if (editingFigure) buildHandles();
   });
 
   // ---- mannequin stage: drop new items, drag placed items around, resize them ----
