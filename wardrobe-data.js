@@ -1,21 +1,42 @@
-// ---- Cultr: shared wardrobe data layer ----
-// Centralizes localStorage keys, constants, and CRUD helpers used across
-// every wardrobe-related page (overview, detail, the Add Item modal, the
-// category browser, the outfit builder, and Looks). No backend yet — see
-// the README — but keeping all of this in one file means swapping it for
-// real Firestore calls later is a single-file change instead of hunting
-// through six pages for duplicated logic.
+// ---- Cultr: shared wardrobe data layer (Firestore-backed) ----
+// Every wardrobe page requires login (see the auth-gate at the bottom of
+// each page's own .js file) — once logged in, this file loads that
+// account's wardrobes/items/looks from Firestore into an in-memory
+// cache, so edits are tied to the account rather than the device: log in
+// on any browser and your wardrobes are there.
+//
+// To keep the six pages that use this file simple, loadX()/saveX() stay
+// SYNCHRONOUS — they read/write the in-memory cache instantly, the same
+// as the old localStorage version did. The only async step is
+// ensureUserData(), called once right after login (see each page's
+// bootstrap) to populate that cache from Firestore before any page logic
+// runs. saveX() writes update the cache immediately (so the UI feels
+// instant) and persist to Firestore in the background, debounced.
+//
+// Data shape: one document per account at wardrobeApp/{uid} with fields
+// { wardrobes, items, looks } — one document rather than subcollections,
+// since this is simple, cheap, and reads/writes in a single round trip.
 
-export const WARDROBES_KEY = "cultr:wardrobes";
-export const ITEMS_KEY = "cultr:wardrobe-items";
-export const LOOKS_KEY = "cultr:looks";
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
-// Seeded onto any wardrobe that doesn't have its own sections yet.
-// Wardrobes can add/rename/remove sections from here (see wardrobe-detail.js).
+const firebaseConfig = {
+  apiKey: "AIzaSyDk2Fg3iuYJ-j4a07n2jS1UeUy1FjfaVgk",
+  authDomain: "nini-c040c.firebaseapp.com",
+  projectId: "nini-c040c",
+  storageBucket: "nini-c040c.firebasestorage.app",
+  messagingSenderId: "496460943549",
+  appId: "1:496460943549:web:67d169ef2395e6b3f0a7d4",
+  measurementId: "G-LH3L0P142P"
+};
+
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
 export const DEFAULT_CATEGORIES = ["Tops", "Bottoms", "Jeans", "Accessories"];
-
 export const STYLES = ["Casual", "Going out", "Work", "Formal", "Sport", "Loungewear"];
-
 export const COLORS = [
   "Black", "White", "Grey", "Beige", "Brown", "Red", "Pink",
   "Orange", "Yellow", "Green", "Blue", "Purple", "Multicolor"
@@ -38,33 +59,88 @@ export function slugify(name) {
   );
 }
 
-// ---- wardrobes ----
-export function loadWardrobes() {
-  try {
-    const raw = localStorage.getItem(WARDROBES_KEY);
-    if (!raw) throw new Error("no data yet");
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) throw new Error("empty");
-
-    // Migrate wardrobes saved before per-wardrobe sections existed.
-    let changed = false;
-    parsed.forEach((w) => {
-      if (!Array.isArray(w.categories) || w.categories.length === 0) {
-        w.categories = DEFAULT_CATEGORIES.slice();
-        changed = true;
-      }
-    });
-    if (changed) saveWardrobes(parsed);
-    return parsed;
-  } catch (e) {
-    const seed = DEFAULT_WARDROBES.map((w) => Object.assign({}, w, { categories: w.categories.slice() }));
-    saveWardrobes(seed);
-    return seed;
-  }
+function seedDefaultWardrobes() {
+  return DEFAULT_WARDROBES.map((w) => Object.assign({}, w, { categories: w.categories.slice() }));
 }
 
+// ---- auth ----
+// Thin wrapper so pages don't need their own Firebase imports just to
+// know whether someone's logged in.
+export function onAuthChange(callback) {
+  return onAuthStateChanged(auth, callback);
+}
+
+// ---- in-memory cache, populated from Firestore after login ----
+let cache = null; // { wardrobes, items, looks }
+let currentUid = null;
+
+function docRefFor(uid) {
+  return doc(db, "wardrobeApp", uid);
+}
+
+// Call once right after a successful login (see each page's bootstrap),
+// before running any page logic that reads wardrobes/items/looks.
+export async function ensureUserData() {
+  const user = auth.currentUser;
+  if (!user) {
+    cache = null;
+    currentUid = null;
+    return null;
+  }
+  if (cache && currentUid === user.uid) return cache; // already loaded this session
+
+  const ref = docRefFor(user.uid);
+  const snap = await getDoc(ref);
+
+  if (snap.exists()) {
+    const data = snap.data() || {};
+    cache = {
+      wardrobes: Array.isArray(data.wardrobes) && data.wardrobes.length ? data.wardrobes : seedDefaultWardrobes(),
+      items: Array.isArray(data.items) ? data.items : [],
+      looks: Array.isArray(data.looks) ? data.looks : []
+    };
+    // Migrate wardrobes saved before per-wardrobe sections existed.
+    let needsWrite = !Array.isArray(data.wardrobes) || data.wardrobes.length === 0;
+    cache.wardrobes.forEach((w) => {
+      if (!Array.isArray(w.categories) || w.categories.length === 0) {
+        w.categories = DEFAULT_CATEGORIES.slice();
+        needsWrite = true;
+      }
+    });
+    currentUid = user.uid;
+    if (needsWrite) await setDoc(ref, cache, { merge: true });
+  } else {
+    cache = { wardrobes: seedDefaultWardrobes(), items: [], looks: [] };
+    currentUid = user.uid;
+    await setDoc(ref, cache);
+  }
+
+  return cache;
+}
+
+let persistTimer = null;
+function persist() {
+  if (!currentUid || !cache) return;
+  // Debounced so a quick run of edits (typing a rename, dragging an
+  // outfit piece around) doesn't fire a Firestore write per change.
+  clearTimeout(persistTimer);
+  const uid = currentUid;
+  const snapshot = cache;
+  persistTimer = setTimeout(() => {
+    setDoc(docRefFor(uid), snapshot, { merge: true }).catch((err) => {
+      console.error("Cultr: couldn't save to your account —", err);
+    });
+  }, 400);
+}
+
+// ---- wardrobes ----
+export function loadWardrobes() {
+  return cache ? cache.wardrobes : [];
+}
 export function saveWardrobes(list) {
-  localStorage.setItem(WARDROBES_KEY, JSON.stringify(list));
+  if (!cache) return;
+  cache.wardrobes = list;
+  persist();
 }
 
 // The union of every wardrobe's sections — used for the overview page's
@@ -79,24 +155,18 @@ export function allCategories(wardrobes) {
 
 // ---- items ----
 export function loadItems() {
-  try {
-    const raw = localStorage.getItem(ITEMS_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    return [];
-  }
+  return cache ? cache.items : [];
 }
-
 export function saveItems(items) {
-  localStorage.setItem(ITEMS_KEY, JSON.stringify(items));
+  if (!cache) return;
+  cache.items = items;
+  persist();
 }
 
-// Items belong to a wardrobe by id. When a wardrobe is deleted, its items
-// would otherwise sit around orphaned in localStorage forever.
+// Items belong to a wardrobe by id. When a wardrobe is deleted, its
+// items would otherwise sit around orphaned forever.
 export function deleteItemsForWardrobe(wardrobeId) {
-  const items = loadItems().filter((it) => it.wardrobeId !== wardrobeId);
-  saveItems(items);
+  saveItems(loadItems().filter((it) => it.wardrobeId !== wardrobeId));
 }
 
 // When a section is renamed, items filed under the old name need to move
@@ -115,15 +185,10 @@ export function renameCategoryOnItems(wardrobeId, oldName, newName) {
 
 // ---- looks ----
 export function loadLooks() {
-  try {
-    const raw = localStorage.getItem(LOOKS_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    return [];
-  }
+  return cache ? cache.looks : [];
 }
-
 export function saveLooks(looks) {
-  localStorage.setItem(LOOKS_KEY, JSON.stringify(looks));
+  if (!cache) return;
+  cache.looks = looks;
+  persist();
 }

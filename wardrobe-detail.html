@@ -495,6 +495,41 @@
     border: none;
     cursor: pointer;
   }
+
+  .auth-gate {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 80px);
+    padding: 40px;
+    text-align: center;
+  }
+  .auth-gate-box { max-width: 380px; }
+  .auth-gate-box h2 {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 600;
+    font-size: 26px;
+    color: var(--cream);
+    margin: 0 0 12px;
+  }
+  .auth-gate-box p {
+    font-size: 13.5px;
+    color: rgba(26,23,18,0.55);
+    line-height: 1.55;
+    margin: 0 0 22px;
+  }
+  .auth-gate-btn {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--black);
+    background: var(--brass);
+    border: none;
+    border-radius: 999px;
+    padding: 13px 28px;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
@@ -508,7 +543,18 @@
     <a href="journal.html">Journal</a>
   </div>
 </header>
-<main>
+
+<script type="module" src="auth.js"></script>
+
+<div class="auth-gate" id="authGate">
+  <div class="auth-gate-box">
+    <h2>Log in to view your wardrobe</h2>
+    <p>Your wardrobes, items, and looks are saved to your account, so they're waiting for you next time you log in — on any device.</p>
+    <button class="auth-gate-btn" id="authGateLoginBtn" type="button">Log in / Sign up</button>
+  </div>
+</div>
+
+<main style="display:none">
 
   <div class="wardrobe-detail-head">
     <h1 class="wardrobe-detail-title" id="wardrobeTitle">Wardrobe</h1>

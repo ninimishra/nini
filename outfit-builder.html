@@ -184,13 +184,22 @@
   .builder-btn--primary { background: var(--brass); color: var(--black); }
   .builder-btn--quiet { background: var(--charcoal); color: var(--cream); }
 
-  .mannequin-stage {
+  .mannequin-stage-wrap {
     position: relative;
     width: 280px;
     height: min(78vh, 980px);
-    background: var(--charcoal);
-    border-radius: 12px;
+    border-radius: 16px;
     overflow: hidden;
+  }
+  .acid-bg-mount {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+  .mannequin-stage {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
     touch-action: none;
   }
   .mannequin-stage img.mannequin-base {
@@ -200,7 +209,6 @@
     height: 100%;
     object-fit: contain;
     pointer-events: none;
-    opacity: 0.9;
   }
   .mannequin-dropzone-hint {
     position: absolute;
@@ -211,7 +219,8 @@
     text-align: center;
     padding: 20px;
     font-size: 12.5px;
-    color: rgba(26,23,18,0.4);
+    color: rgba(255,255,255,0.75);
+    text-shadow: 0 1px 4px rgba(0,0,0,0.4);
     pointer-events: none;
   }
 
@@ -245,12 +254,63 @@
   }
   .placed-item:hover .placed-item-remove { opacity: 1; }
 
+  .placed-item-resize {
+    position: absolute;
+    bottom: -8px;
+    right: -8px;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: var(--brass);
+    border: 2px solid #fff;
+    cursor: nwse-resize;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .placed-item:hover .placed-item-resize { opacity: 1; }
+
   .builder-save-status {
     font-size: 12.5px;
     color: rgba(26,23,18,0.6);
     min-height: 16px;
   }
   .builder-save-status a { color: var(--brass); }
+
+  .auth-gate {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - 80px);
+    padding: 40px;
+    text-align: center;
+  }
+  .auth-gate-box { max-width: 380px; }
+  .auth-gate-box h2 {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 600;
+    font-size: 26px;
+    color: var(--cream);
+    margin: 0 0 12px;
+  }
+  .auth-gate-box p {
+    font-size: 13.5px;
+    color: rgba(26,23,18,0.55);
+    line-height: 1.55;
+    margin: 0 0 22px;
+  }
+  .auth-gate-btn {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--black);
+    background: var(--brass);
+    border: none;
+    border-radius: 999px;
+    padding: 13px 28px;
+    cursor: pointer;
+  }
+
 </style>
 </head>
 <body>
@@ -264,7 +324,18 @@
     <a href="journal.html">Journal</a>
   </div>
 </header>
-<main>
+
+<script type="module" src="auth.js"></script>
+
+<div class="auth-gate" id="authGate">
+  <div class="auth-gate-box">
+    <h2>Log in to view your wardrobe</h2>
+    <p>Your wardrobes, items, and looks are saved to your account, so they're waiting for you next time you log in — on any device.</p>
+    <button class="auth-gate-btn" id="authGateLoginBtn" type="button">Log in / Sign up</button>
+  </div>
+</div>
+
+<main style="display:none">
   <h1 class="builder-title">Build an outfit</h1>
   <p class="builder-subtitle">Search your wardrobe and drag pieces onto the mannequin.</p>
 
@@ -283,9 +354,12 @@
         <button class="builder-btn builder-btn--primary" id="saveLookBtn" type="button">Save to Looks</button>
         <button class="builder-btn builder-btn--quiet" id="clearStageBtn" type="button">Clear</button>
       </div>
-      <div class="mannequin-stage" id="mannequinStage">
-        <img class="mannequin-base" src="mannequin.png" alt="Mannequin">
-        <div class="mannequin-dropzone-hint" id="dropHint">Drag items here to dress the mannequin</div>
+      <div class="mannequin-stage-wrap" id="mannequinStageWrap">
+        <div class="acid-bg-mount" id="acidBgMount"></div>
+        <div class="mannequin-stage" id="mannequinStage">
+          <img class="mannequin-base" src="mannequin.png" alt="Mannequin">
+          <div class="mannequin-dropzone-hint" id="dropHint">Drag items here to dress the mannequin</div>
+        </div>
       </div>
       <p class="builder-save-status" id="saveStatus"></p>
     </div>

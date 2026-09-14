@@ -9,7 +9,15 @@ import { mountTiltedCard } from "./tilted-card.js";
 import { mountStepper } from "./stepper.js";
 import { mountSpecularButton } from "./specular-button.js";
 import { mountAddItemModal } from "./add-item.js";
-import { loadWardrobes, saveWardrobes, deleteItemsForWardrobe, allCategories, slugify } from "./wardrobe-data.js";
+import {
+  loadWardrobes,
+  saveWardrobes,
+  deleteItemsForWardrobe,
+  allCategories,
+  slugify,
+  onAuthChange,
+  ensureUserData
+} from "./wardrobe-data.js";
 
 // ---- tiny helpers ----
 function hashHue(str) {
@@ -296,8 +304,37 @@ function init() {
   });
 }
 
+function boot() {
+  const gate = document.getElementById("authGate");
+  const main = document.querySelector("main");
+  const loginBtn = document.getElementById("authGateLoginBtn");
+  let started = false;
+
+  if (loginBtn) {
+    loginBtn.addEventListener("click", () => {
+      if (window.requireCultrAuth) window.requireCultrAuth(() => {});
+    });
+  }
+
+  onAuthChange(async (user) => {
+    if (!user) {
+      started = false;
+      if (gate) gate.style.display = "flex";
+      if (main) main.style.display = "none";
+      return;
+    }
+    await ensureUserData();
+    if (gate) gate.style.display = "none";
+    if (main) main.style.display = "";
+    if (!started) {
+      started = true;
+      init();
+    }
+  });
+}
+
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", boot);
 } else {
-  init();
+  boot();
 }

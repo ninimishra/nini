@@ -4,7 +4,7 @@
 // directly (see outfit-builder.js), so this page doesn't need to touch
 // the wardrobe/items data at all.
 
-import { loadLooks, saveLooks } from "./wardrobe-data.js";
+import { loadLooks, saveLooks, onAuthChange, ensureUserData } from "./wardrobe-data.js";
 
 function init() {
   const grid = document.getElementById("looksGrid");
@@ -74,8 +74,37 @@ function init() {
   render();
 }
 
+function boot() {
+  const gate = document.getElementById("authGate");
+  const main = document.querySelector("main");
+  const loginBtn = document.getElementById("authGateLoginBtn");
+  let started = false;
+
+  if (loginBtn) {
+    loginBtn.addEventListener("click", () => {
+      if (window.requireCultrAuth) window.requireCultrAuth(() => {});
+    });
+  }
+
+  onAuthChange(async (user) => {
+    if (!user) {
+      started = false;
+      if (gate) gate.style.display = "flex";
+      if (main) main.style.display = "none";
+      return;
+    }
+    await ensureUserData();
+    if (gate) gate.style.display = "none";
+    if (main) main.style.display = "";
+    if (!started) {
+      started = true;
+      init();
+    }
+  });
+}
+
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", boot);
 } else {
-  init();
+  boot();
 }

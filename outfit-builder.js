@@ -1,11 +1,25 @@
 // ---- Cultr: Build an outfit ----
 // Search across every wardrobe by wardrobe / category / style, drag a
-// piece onto the mannequin, drag it around once it's there, then save
-// the whole arrangement to Looks. Each saved placement stores the
-// item's image directly (not just its id) so a Look stays intact even
-// if the original wardrobe item is later edited or removed.
+// piece onto the mannequin, drag it around (or resize it via the corner
+// handle) once it's there, then save the whole arrangement to Looks.
+// Each saved placement stores the item's image directly (not just its
+// id) so a Look stays intact even if the original wardrobe item is later
+// edited or removed.
 
-import { loadWardrobes, loadItems, loadLooks, saveLooks, allCategories, STYLES } from "./wardrobe-data.js";
+import {
+  loadWardrobes,
+  loadItems,
+  loadLooks,
+  saveLooks,
+  allCategories,
+  STYLES,
+  onAuthChange,
+  ensureUserData
+} from "./wardrobe-data.js";
+import { mountAcidSquares } from "./acid-squares.js";
+
+const MIN_WIDTH_PERCENT = 12;
+const MAX_WIDTH_PERCENT = 90;
 
 function init() {
   const wardrobes = loadWardrobes();
@@ -20,6 +34,34 @@ function init() {
   const saveBtn = document.getElementById("saveLookBtn");
   const clearBtn = document.getElementById("clearStageBtn");
   const saveStatus = document.getElementById("saveStatus");
+  const acidMount = document.getElementById("acidBgMount");
+
+  // ---- soft animated backdrop behind the mannequin ----
+  mountAcidSquares(acidMount, {
+    color1: "#5b21b6",
+    color2: "#ec4899",
+    color3: "#06b6d4",
+    detail: "medium",
+    speed: 0.7,
+    waveDepth: 1,
+    zoom: 1.3,
+    density: 10.0,
+    glow: 0.48,
+    exposure: 2250,
+    spread: 0.3,
+    stepSize: 0.002,
+    colorShift: 0,
+    contrast: 1,
+    brightness: 1.0,
+    opacity: 1.0,
+    mouseInteraction: true,
+    mouseStrength: 0.1,
+    mouseRadius: 0.35,
+    blur: 0,
+    grain: true,
+    grainIntensity: 0.025,
+    lightMode: true
+  });
 
   // ---- filters ----
   wardrobes.forEach((w) => {
@@ -83,7 +125,7 @@ function init() {
   [filterWardrobe, filterCategory, filterStyle].forEach((el) => el.addEventListener("change", renderSearchGrid));
   renderSearchGrid();
 
-  // ---- mannequin stage: drop new items, drag placed items around ----
+  // ---- mannequin stage: drop new items, drag placed items around, resize them ----
   let placedItems = []; // { image, xPercent, yPercent, widthPercent, el }
 
   function updateHintVisibility() {
@@ -115,8 +157,14 @@ function init() {
     });
     el.appendChild(removeBtn);
 
+    const resizeHandle = document.createElement("div");
+    resizeHandle.className = "placed-item-resize";
+    resizeHandle.setAttribute("aria-label", "Resize");
+    el.appendChild(resizeHandle);
+
     const record = { image, xPercent, yPercent, widthPercent: w, el };
     makeDraggable(el, record);
+    makeResizable(resizeHandle, el, record);
 
     stage.appendChild(el);
     placedItems.push(record);
@@ -129,6 +177,7 @@ function init() {
     let offsetY = 0;
 
     el.addEventListener("pointerdown", (e) => {
+      if (e.target.closest(".placed-item-resize") || e.target.closest(".placed-item-remove")) return;
       dragging = true;
       el.classList.add("is-dragging");
       el.setPointerCapture(e.pointerId);
@@ -162,6 +211,45 @@ function init() {
     }
     el.addEventListener("pointerup", endDrag);
     el.addEventListener("pointercancel", endDrag);
+  }
+
+  // Drag the bottom-right handle to make a placed item bigger or smaller,
+  // so it can actually be scaled to fit the mannequin.
+  function makeResizable(handle, el, record) {
+    let resizing = false;
+    let startX = 0;
+    let startWidthPx = 0;
+
+    handle.addEventListener("pointerdown", (e) => {
+      e.stopPropagation();
+      resizing = true;
+      handle.setPointerCapture(e.pointerId);
+      startX = e.clientX;
+      startWidthPx = el.getBoundingClientRect().width;
+    });
+
+    handle.addEventListener("pointermove", (e) => {
+      if (!resizing) return;
+      const stageRect = stage.getBoundingClientRect();
+      const deltaPx = e.clientX - startX;
+      const newWidthPx = Math.max(20, startWidthPx + deltaPx);
+      let widthPercent = (newWidthPx / stageRect.width) * 100;
+      widthPercent = Math.max(MIN_WIDTH_PERCENT, Math.min(MAX_WIDTH_PERCENT, widthPercent));
+      record.widthPercent = widthPercent;
+      el.style.width = widthPercent + "%";
+    });
+
+    function endResize(e) {
+      if (!resizing) return;
+      resizing = false;
+      try {
+        handle.releasePointerCapture(e.pointerId);
+      } catch (err) {
+        // ignore
+      }
+    }
+    handle.addEventListener("pointerup", endResize);
+    handle.addEventListener("pointercancel", endResize);
   }
 
   stage.addEventListener("dragover", (e) => {
@@ -217,8 +305,38 @@ function init() {
   });
 }
 
+// ---- auth gate: this page requires login, and loads that account's data ----
+function boot() {
+  const gate = document.getElementById("authGate");
+  const main = document.querySelector("main");
+  const loginBtn = document.getElementById("authGateLoginBtn");
+  let started = false;
+
+  if (loginBtn) {
+    loginBtn.addEventListener("click", () => {
+      if (window.requireCultrAuth) window.requireCultrAuth(() => {});
+    });
+  }
+
+  onAuthChange(async (user) => {
+    if (!user) {
+      started = false;
+      if (gate) gate.style.display = "flex";
+      if (main) main.style.display = "none";
+      return;
+    }
+    await ensureUserData();
+    if (gate) gate.style.display = "none";
+    if (main) main.style.display = "";
+    if (!started) {
+      started = true;
+      init();
+    }
+  });
+}
+
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
+  document.addEventListener("DOMContentLoaded", boot);
 } else {
-  init();
+  boot();
 }
